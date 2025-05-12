@@ -11,7 +11,7 @@ VERSION=1.0.0 && \
 ARCH=linux-amd64 && \
 NAME=rump-$VERSION-$ARCH && \
 curl -L -o /rump \
-https://github.com/stickermule/rump/releases/download/$VERSION/$NAME && \
+https://github.com/chrismckee/rump/releases/download/$VERSION/$NAME && \
 chmod +x /rump
 
 ENTRYPOINT ["/rump"]

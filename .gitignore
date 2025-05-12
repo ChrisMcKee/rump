@@ -1,3 +1,5 @@
 rump-*
 main
 *.rump
+
+/.idea/

@@ -11,41 +11,44 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mediocregopher/radix/v3"
+	"github.com/mediocregopher/radix/v4"
 
-	"github.com/stickermule/rump/pkg/file"
-	"github.com/stickermule/rump/pkg/message"
-	"github.com/stickermule/rump/pkg/redis"
+	"github.com/chrismckee/rump/pkg/file"
+	"github.com/chrismckee/rump/pkg/message"
+	"github.com/chrismckee/rump/pkg/redis"
 )
 
-var db1 *radix.Pool
-var db2 *radix.Pool
-var ch message.Bus
-var expected map[string]string
-var path string
-var ctx context.Context
+var (
+	db1      radix.Client
+	db2      radix.Client
+	ch       message.Bus
+	expected map[string]string
+	path     string
+	ctx      context.Context
+)
 
 func setup() {
-	db1, _ = radix.NewPool("tcp", "redis://redis:6379/5", 1)
-	db2, _ = radix.NewPool("tcp", "redis://redis:6379/6", 1)
+	ctx = context.Background()
+	poolCfg := radix.PoolConfig{Size: 1}
+	db1, _ = poolCfg.New(ctx, "tcp", "redis://redis:6379/5")
+	db2, _ = poolCfg.New(ctx, "tcp", "redis://redis:6379/6")
 	ch = make(message.Bus, 100)
 	expected = make(map[string]string)
 	path = "/app/dump.rump"
-	ctx = context.Background()
 
 	// generate source test data
 	for i := 1; i <= 20; i++ {
 		k := fmt.Sprintf("key%v", i)
 		v := fmt.Sprintf("value%v", i)
-		db1.Do(radix.Cmd(nil, "SET", k, v))
+		db1.Do(ctx, radix.Cmd(nil, "SET", k, v))
 		expected[k] = v
 	}
 }
 
 func teardown() {
 	// Reset test dbs
-	db1.Do(radix.Cmd(nil, "FLUSHDB"))
-	db2.Do(radix.Cmd(nil, "FLUSHDB"))
+	db1.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
+	db2.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
 	// Delete dump file
 	os.Remove(path)
 }
@@ -65,7 +68,7 @@ func TestWriteRead(t *testing.T) {
 	}
 
 	// Write rump dump from shared message bus
-	target := file.New(path, ch, false, false)
+	target := file.New(path, ch, false, false, 65536)
 	if err := target.Write(ctx); err != nil {
 		t.Error("error: ", err)
 	}
@@ -74,7 +77,7 @@ func TestWriteRead(t *testing.T) {
 	ch2 := make(message.Bus, 100)
 
 	// Read rump dump file
-	source2 := file.New(path, ch2, false, false)
+	source2 := file.New(path, ch2, false, false, 65536)
 	if err := source2.Read(ctx); err != nil {
 		t.Error("error: ", err)
 	}
@@ -89,7 +92,7 @@ func TestWriteRead(t *testing.T) {
 	result := map[string]string{}
 	var v string
 	for k := range expected {
-		db2.Do(radix.Cmd(&v, "GET", k))
+		db2.Do(ctx, radix.Cmd(&v, "GET", k))
 		result[k] = v
 	}
 

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/stickermule/rump/pkg/config"
-	"github.com/stickermule/rump/pkg/run"
+	"github.com/chrismckee/rump/pkg/config"
+	"github.com/chrismckee/rump/pkg/run"
 )
 
 func main() {

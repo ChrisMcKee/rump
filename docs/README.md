@@ -2,7 +2,7 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/stickermule/rump)](https://goreportcard.com/report/github.com/stickermule/rump)
 [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](https://godoc.org/github.com/stickermule/rump)
-[![CI](https://img.shields.io/badge/master-pass-green.svg)](https://github.com/stickermule/rump/commits/master)
+[![CI](https://img.shields.io/badge/master-pass-green.svg)](https://github.com/chrismckee/rump/commits/master)
 
 Hot sync two Redis databases using dumps.
 
@@ -67,10 +67,10 @@ dc run --rm redis sh; redis-cli -h redis # get Redis console
 
 ## Install
 
-Binaries can be found on the [releases](https://github.com/stickermule/rump/releases) page.
+Binaries can be found on the [releases](https://github.com/chrismckee/rump/releases) page.
 
 ```
-curl -SL https://github.com/stickermule/rump/releases/download/1.0.0/rump-1.0.0-linux-amd64 -o rump \
+curl -SL https://github.com/chrismckee/rump/releases/download/1.0.0/rump-1.0.0-linux-amd64 -o rump \
   && chmod +x rump;
 ./rump
 ```

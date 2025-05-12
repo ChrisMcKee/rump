@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/stickermule/rump/pkg/message"
+	"github.com/chrismckee/rump/pkg/message"
 )
 
 // File can read and write, to a file Path, using the message Bus.
@@ -18,11 +18,11 @@ type File struct {
 	Bus    message.Bus
 	Silent bool
 	TTL    bool
+	MaxBuf int
 }
 
 // splitCross is a double-cross (✝✝) custom Scanner Split.
 func splitCross(data []byte, atEOF bool) (advance int, token []byte, err error) {
-
 	// end of file
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
@@ -38,12 +38,13 @@ func splitCross(data []byte, atEOF bool) (advance int, token []byte, err error) 
 }
 
 // New creates the File struct, to be used for reading/writing.
-func New(path string, bus message.Bus, silent, ttl bool) *File {
+func New(path string, bus message.Bus, silent, ttl bool, maxBuf int) *File {
 	return &File{
 		Path:   path,
 		Bus:    bus,
 		Silent: silent,
 		TTL:    ttl,
+		MaxBuf: maxBuf,
 	}
 }
 
@@ -67,6 +68,8 @@ func (f *File) Read(ctx context.Context) error {
 
 	// Scan file, split by double-cross separator
 	scanner := bufio.NewScanner(d)
+	buf := make([]byte, 0, bufio.MaxScanTokenSize)
+	scanner.Buffer(buf, f.MaxBuf)
 	scanner.Split(splitCross)
 
 	// Scan line by line

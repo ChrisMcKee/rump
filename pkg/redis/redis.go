@@ -5,23 +5,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mediocregopher/radix/v3"
+	"github.com/mediocregopher/radix/v4"
 
-	"github.com/stickermule/rump/pkg/message"
+	"github.com/chrismckee/rump/pkg/message"
 )
 
 // Redis holds references to a DB pool and a shared message bus.
 // Silent disables verbose mode.
 // TTL enables TTL sync.
 type Redis struct {
-	Pool   *radix.Pool
+	Pool   radix.Client
 	Bus    message.Bus
 	Silent bool
 	TTL    bool
 }
 
 // New creates the Redis struct, used to read/write.
-func New(source *radix.Pool, bus message.Bus, silent, ttl bool) *Redis {
+func New(source radix.Client, bus message.Bus, silent, ttl bool) *Redis {
 	return &Redis{
 		Pool:   source,
 		Bus:    bus,
@@ -29,6 +29,19 @@ func New(source *radix.Pool, bus message.Bus, silent, ttl bool) *Redis {
 		TTL:    ttl,
 	}
 }
+
+//// New creates the Redis struct, used to read/write.
+//func New(addr string, cfg config.Config, bus message.Bus) (*Redis, error) {
+//
+//	source, err := radix.NewPool("tcp", addr, 1, radix.PoolConnFunc(authConn(cfg.Source)))
+//
+//	return &Redis{
+//		Pool:   source,
+//		Bus:    bus,
+//		Silent: cfg.Silent,
+//		TTL:    cfg.TTL,
+//	}, err
+//}
 
 // maybeLog may log, depending on the Silent flag
 func (r *Redis) maybeLog(s string) {
@@ -39,16 +52,17 @@ func (r *Redis) maybeLog(s string) {
 }
 
 // maybeTTL may sync the TTL, depending on the TTL flag
-func (r *Redis) maybeTTL(key string) (string, error) {
+func (r *Redis) maybeTTL(ctx context.Context, key string) (string, error) {
 	// noop if TTL is disabled, speeds up sync process
 	if !r.TTL {
 		return "0", nil
 	}
 
 	var ttl string
+	var err error
 
 	// Try getting key TTL.
-	err := r.Pool.Do(radix.Cmd(&ttl, "PTTL", key))
+	err = r.Pool.Do(ctx, radix.Cmd(&ttl, "PTTL", key))
 	if err != nil {
 		return ttl, err
 	}
@@ -69,7 +83,7 @@ func (r *Redis) maybeTTL(key string) (string, error) {
 func (r *Redis) Read(ctx context.Context) error {
 	defer close(r.Bus)
 
-	scanner := radix.NewScanner(r.Pool, radix.ScanAllKeys)
+	scanner := (radix.ScannerConfig{}).New(r.Pool)
 
 	var key string
 	var value string
@@ -77,13 +91,14 @@ func (r *Redis) Read(ctx context.Context) error {
 
 	// Scan and push to bus until no keys are left.
 	// If context Done, exit early.
-	for scanner.Next(&key) {
-		err := r.Pool.Do(radix.Cmd(&value, "DUMP", key))
+	for scanner.Next(ctx, &key) {
+
+		err := r.Pool.Do(ctx, radix.Cmd(&value, "DUMP", key))
 		if err != nil {
 			return err
 		}
 
-		ttl, err = r.maybeTTL(key)
+		ttl, err = r.maybeTTL(ctx, key)
 		if err != nil {
 			return err
 		}
@@ -118,11 +133,39 @@ func (r *Redis) Write(ctx context.Context) error {
 				r.Bus = nil
 				continue
 			}
-			err := r.Pool.Do(radix.Cmd(nil, "RESTORE", p.Key, p.TTL, p.Value, "REPLACE"))
+			err := r.Pool.Do(ctx, radix.Cmd(nil, "RESTORE", p.Key, p.TTL, p.Value, "REPLACE"))
 			if err != nil {
 				return err
 			}
 			r.maybeLog("w")
+		}
+	}
+
+	return nil
+}
+
+func (r *Redis) Monitor(ctx context.Context) error {
+	// Loop until channel is open
+	for r.Bus != nil {
+		select {
+		// Exit early if context done.
+		case <-ctx.Done():
+			fmt.Println("")
+			fmt.Println("redis write: exit")
+			return ctx.Err()
+		// Get Messages from Bus
+		case p, ok := <-r.Bus:
+			// if channel closed, set to nil, break loop
+			if !ok {
+				r.Bus = nil
+				continue
+			}
+			err := r.Pool.Do(ctx, radix.Cmd(&p.Value, "MONITOR", ""))
+			if err != nil {
+				return err
+			}
+
+			r.maybeLog(p.Value)
 		}
 	}
 
