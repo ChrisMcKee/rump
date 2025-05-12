@@ -27,14 +27,21 @@ var (
 	ctx      context.Context
 )
 
-func setup() {
+func setup(t *testing.T) {
 	ctx = context.Background()
 	poolCfg := radix.PoolConfig{Size: 1}
-	db1, _ = poolCfg.New(ctx, "tcp", "redis://redis:6379/5")
-	db2, _ = poolCfg.New(ctx, "tcp", "redis://redis:6379/6")
+	var err error
+	db1, err = poolCfg.New(ctx, "tcp", "redis://localhost:6379/5")
+	if err != nil {
+		t.Fatalf("failed to create db1: %v", err)
+	}
+	db2, err = poolCfg.New(ctx, "tcp", "redis://localhost:6379/6")
+	if err != nil {
+		t.Fatalf("failed to create db2: %v", err)
+	}
 	ch = make(message.Bus, 100)
 	expected = make(map[string]string)
-	path = "/app/dump.rump"
+	path = "./dump.rump"
 
 	// generate source test data
 	for i := 1; i <= 20; i++ {
@@ -45,22 +52,29 @@ func setup() {
 	}
 }
 
-func teardown() {
+func teardown(t *testing.T) {
 	// Reset test dbs
-	db1.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
-	db2.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
+	if err := db1.Do(ctx, radix.Cmd(nil, "FLUSHDB")); err != nil {
+		t.Fatalf("failed to flush db1: %v", err)
+	}
+	if err := db2.Do(ctx, radix.Cmd(nil, "FLUSHDB")); err != nil {
+		t.Fatalf("failed to flush db2: %v", err)
+	}
 	// Delete dump file
-	os.Remove(path)
+	_ = os.Remove(path)
 }
 
 func TestMain(m *testing.M) {
-	setup()
+	t := &testing.T{}
+	setup(t)
 	code := m.Run()
-	teardown()
+	teardown(t)
 	os.Exit(code)
 }
 
 func TestWriteRead(t *testing.T) {
+	setup(t)
+	defer teardown(t)
 	// Read all keys from db1, push to shared message bus
 	source := redis.New(db1, ch, false, false)
 	if err := source.Read(ctx); err != nil {

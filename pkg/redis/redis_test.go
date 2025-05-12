@@ -29,13 +29,18 @@ func errorReport(err error) {
 	}
 }
 
-func setup() {
+func setup(t *testing.T) {
 	ctx := context.Background()
 	poolCfg := radix.PoolConfig{Size: 1}
-	db1, err = poolCfg.New(ctx, "tcp", "redis://redis:6379/3")
-	errorReport(err)
-	db2, err = poolCfg.New(ctx, "tcp", "redis://redis:6379/4")
-	errorReport(err)
+	var err error
+	db1, err = poolCfg.New(ctx, "tcp", "redis://localhost:6379/3")
+	if err != nil {
+		t.Fatalf("failed to create db1: %v", err)
+	}
+	db2, err = poolCfg.New(ctx, "tcp", "redis://localhost:6379/4")
+	if err != nil {
+		t.Fatalf("failed to create db2: %v", err)
+	}
 	expected = make(map[string]string)
 
 	// generate source test data on db1
@@ -48,22 +53,28 @@ func setup() {
 	}
 }
 
-func teardown() {
+func teardown(t *testing.T) {
 	ctx := context.Background()
-	// Reset test dbs
-	db1.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
-	db2.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
+	if err := db1.Do(ctx, radix.Cmd(nil, "FLUSHDB")); err != nil {
+		t.Fatalf("failed to flush db1: %v", err)
+	}
+	if err := db2.Do(ctx, radix.Cmd(nil, "FLUSHDB")); err != nil {
+		t.Fatalf("failed to flush db2: %v", err)
+	}
 }
 
 func TestMain(m *testing.M) {
-	setup()
+	t := &testing.T{}
+	setup(t)
 	code := m.Run()
-	teardown()
+	teardown(t)
 	os.Exit(code)
 }
 
 // Test db1 to db2 sync
 func TestReadWrite(t *testing.T) {
+	setup(t)
+	defer teardown(t)
 	ch = make(message.Bus, 100)
 
 	source := redis.New(db1, ch, false, false)

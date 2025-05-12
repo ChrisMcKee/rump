@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"testing"
 
 	"github.com/mediocregopher/radix/v4"
 
@@ -34,11 +35,18 @@ var (
 	path string
 )
 
-func setup() {
+func setup(t *testing.T) {
 	ctx := context.Background()
 	poolCfg := radix.PoolConfig{Size: 1}
-	db1, _ = poolCfg.New(ctx, "tcp", "redis://redis:6379/9")
-	db2, _ = poolCfg.New(ctx, "tcp", "redis://redis:6379/10")
+	var err error
+	db1, err = poolCfg.New(ctx, "tcp", "redis://localhost:6379/9")
+	if err != nil {
+		t.Fatalf("failed to create db1: %v", err)
+	}
+	db2, err = poolCfg.New(ctx, "tcp", "redis://localhost:6379/10")
+	if err != nil {
+		t.Fatalf("failed to create db2: %v", err)
+	}
 	path = "/app/dump.rump"
 
 	// generate source test data on db1
@@ -50,29 +58,45 @@ func setup() {
 	}
 }
 
-func teardown() {
+func teardown(t *testing.T) {
 	ctx := context.Background()
-	// Reset test dbs
-	db1.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
-	db2.Do(ctx, radix.Cmd(nil, "FLUSHDB"))
-	// Delete dump file
-	os.Remove(path)
+	if err := db1.Do(ctx, radix.Cmd(nil, "FLUSHDB")); err != nil {
+		t.Fatalf("failed to flush db1: %v", err)
+	}
+	if err := db2.Do(ctx, radix.Cmd(nil, "FLUSHDB")); err != nil {
+		t.Fatalf("failed to flush db2: %v", err)
+	}
+	_ = os.Remove(path)
+}
+
+func TestMain(m *testing.M) {
+	t := &testing.T{}
+	setup(t)
+	code := m.Run()
+	teardown(t)
+	os.Exit(code)
+}
+
+func exampleSetupTeardown(t *testing.T, fn func()) {
+	setup(t)
+	defer teardown(t)
+	fn()
 }
 
 func ExampleRun_redisToRedis() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("redis://localhost:6379/10")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("redis://redis:6379/10")
+		cfg := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+			Silent: false,
+		}
 
-	cfg := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-		Silent: false,
-	}
-
-	run.Run(cfg)
+		run.Run(cfg)
+	})
 	// Output:
 	// rw
 	// signal: exit
@@ -80,20 +104,20 @@ func ExampleRun_redisToRedis() {
 }
 
 func ExampleRun_redisToRedisTTL() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("redis://localhost:6379/10")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("redis://redis:6379/10")
+		cfg := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+			Silent: false,
+			TTL:    true,
+		}
 
-	cfg := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-		Silent: false,
-		TTL:    true,
-	}
-
-	run.Run(cfg)
+		run.Run(cfg)
+	})
 	// Output:
 	// rw
 	// signal: exit
@@ -101,37 +125,37 @@ func ExampleRun_redisToRedisTTL() {
 }
 
 func ExampleRun_redisToRedisSilent() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("redis://localhost:6379/10")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("redis://redis:6379/10")
+		cfg := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+			Silent: true,
+		}
 
-	cfg := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-		Silent: true,
-	}
-
-	run.Run(cfg)
+		run.Run(cfg)
+	})
 	// Output:
 	// signal: exit
 	// done
 }
 
 func ExampleRun_redisToFile() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("/app/dump.rump")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("/app/dump.rump")
+		cfg := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+		}
 
-	cfg := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-	}
-
-	run.Run(cfg)
+		run.Run(cfg)
+	})
 	// Output:
 	// rw
 	// signal: exit
@@ -139,19 +163,19 @@ func ExampleRun_redisToFile() {
 }
 
 func ExampleRun_redisToFileTTL() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("/app/dump.rump")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("/app/dump.rump")
+		cfg := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+			TTL:    true,
+		}
 
-	cfg := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-		TTL:    true,
-	}
-
-	run.Run(cfg)
+		run.Run(cfg)
+	})
 	// Output:
 	// rw
 	// signal: exit
@@ -159,23 +183,23 @@ func ExampleRun_redisToFileTTL() {
 }
 
 func ExampleRun_fileToRedis() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("/app/dump.rump")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("/app/dump.rump")
+		cfgFileDump := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+		}
+		run.Run(cfgFileDump)
 
-	cfgFileDump := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-	}
-	run.Run(cfgFileDump)
-
-	cfg := config.Config{
-		Source: config.Resource{*to},
-		Target: config.Resource{*from},
-	}
-	run.Run(cfg)
+		cfg := config.Config{
+			Source: config.Resource{*to},
+			Target: config.Resource{*from},
+		}
+		run.Run(cfg)
+	})
 	// Output:
 	// rw
 	// signal: exit
@@ -186,24 +210,24 @@ func ExampleRun_fileToRedis() {
 }
 
 func ExampleRun_fileToRedisTTL() {
-	setup()
-	defer teardown()
+	t := &testing.T{}
+	exampleSetupTeardown(t, func() {
+		from, _ := url.Parse("redis://localhost:6379/9")
+		to, _ := url.Parse("/app/dump.rump")
 
-	from, _ := url.Parse("redis://redis:6379/9")
-	to, _ := url.Parse("/app/dump.rump")
+		cfgFileDump := config.Config{
+			Source: config.Resource{*from},
+			Target: config.Resource{*to},
+		}
+		run.Run(cfgFileDump)
 
-	cfgFileDump := config.Config{
-		Source: config.Resource{*from},
-		Target: config.Resource{*to},
-	}
-	run.Run(cfgFileDump)
-
-	cfg := config.Config{
-		Source: config.Resource{*to},
-		Target: config.Resource{*from},
-		TTL:    true,
-	}
-	run.Run(cfg)
+		cfg := config.Config{
+			Source: config.Resource{*to},
+			Target: config.Resource{*from},
+			TTL:    true,
+		}
+		run.Run(cfg)
+	})
 	// Output:
 	// rw
 	// signal: exit
