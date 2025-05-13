@@ -3,8 +3,10 @@ package run
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"os"
 
 	"github.com/pkg/errors"
@@ -50,12 +52,25 @@ func Run(cfg config.Config) {
 				if err := source.Read(gctx); err != nil {
 					log.Fatal(errors.Wrap(err, "reading from source"))
 				}
-
 				return err
 			})
 		} else {
 			poolCfg := radix.PoolConfig{Size: 10}
 			ctx := context.Background()
+
+			if cfg.Source.IsSecure() {
+				host, _, err := net.SplitHostPort(cfg.Source.URL.Host)
+				if err != nil {
+					host = cfg.Source.URL.Host // fallback if no port
+				}
+				poolCfg.Dialer.NetDialer = &tls.Dialer{
+					NetDialer: &net.Dialer{},
+					Config: &tls.Config{
+						ServerName: host, InsecureSkipVerify: true, MinVersion: tls.VersionTLS12,
+					},
+				}
+			}
+			poolCfg.Dialer.AuthPass, _ = cfg.Source.User.Password()
 			sourcePool, err := poolCfg.New(ctx, "tcp", cfg.Source.FormattedString())
 			if err != nil {
 				exit(err)
@@ -70,7 +85,6 @@ func Run(cfg config.Config) {
 		}
 	} else {
 		source := file.New(cfg.Source.String(), ch, cfg.Silent, cfg.TTL, cfg.MaxBuf)
-
 		g.Go(func() error {
 			return source.Read(gctx)
 		})
@@ -91,6 +105,21 @@ func Run(cfg config.Config) {
 		} else {
 			poolCfg := radix.PoolConfig{Size: 10}
 			ctx := context.Background()
+
+			if cfg.Target.IsSecure() {
+				// Extract host for SNI
+				host, _, err := net.SplitHostPort(cfg.Target.URL.Host)
+				if err != nil {
+					host = cfg.Target.URL.Host // fallback if no port
+				}
+				poolCfg.Dialer.NetDialer = &tls.Dialer{
+					NetDialer: &net.Dialer{},
+					Config: &tls.Config{
+						ServerName: host, InsecureSkipVerify: true, MinVersion: tls.VersionTLS12,
+					},
+				}
+				poolCfg.Dialer.AuthPass, _ = cfg.Target.User.Password()
+			}
 			targetPool, err := poolCfg.New(ctx, "tcp", cfg.Target.FormattedString())
 			if err != nil {
 				exit(err)

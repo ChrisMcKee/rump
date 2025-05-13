@@ -34,9 +34,15 @@ func NewCluster(addr string, cfg config.Config, bus message.Bus) (*RedisCluster,
 		AuthPass: password,
 	}
 	if cfg.Source.IsSecure() {
+		host, _, err := net.SplitHostPort(cfg.Source.URL.Host)
+		if err != nil {
+			host = cfg.Source.URL.Host // fallback if no port
+		}
+
 		dialer.NetDialer = &tls.Dialer{
 			NetDialer: &net.Dialer{},
 			Config: &tls.Config{
+				ServerName:         host,
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS12,
 			},

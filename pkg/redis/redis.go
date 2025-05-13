@@ -4,10 +4,8 @@ package redis
 import (
 	"context"
 	"fmt"
-
-	"github.com/mediocregopher/radix/v4"
-
 	"github.com/chrismckee/rump/pkg/message"
+	"github.com/mediocregopher/radix/v4"
 )
 
 // Redis holds references to a DB pool and a shared message bus.
@@ -58,8 +56,10 @@ func (r *Redis) maybeTTL(ctx context.Context, key string) (string, error) {
 		return "0", nil
 	}
 
-	var ttl string
-	var err error
+	var (
+		ttl string
+		err error
+	)
 
 	// Try getting key TTL.
 	err = r.Pool.Do(ctx, radix.Cmd(&ttl, "PTTL", key))

@@ -47,7 +47,10 @@ func setup(t *testing.T) {
 	for i := 1; i <= 20; i++ {
 		k := fmt.Sprintf("key%v", i)
 		v := fmt.Sprintf("value%v", i)
-		db1.Do(ctx, radix.Cmd(nil, "SET", k, v))
+		err := db1.Do(ctx, radix.Cmd(nil, "SET", k, v))
+		if err != nil {
+			return
+		}
 		expected[k] = v
 	}
 }
@@ -106,7 +109,10 @@ func TestWriteRead(t *testing.T) {
 	result := map[string]string{}
 	var v string
 	for k := range expected {
-		db2.Do(ctx, radix.Cmd(&v, "GET", k))
+		err := db2.Do(ctx, radix.Cmd(&v, "GET", k))
+		if err != nil {
+			return
+		}
 		result[k] = v
 	}
 

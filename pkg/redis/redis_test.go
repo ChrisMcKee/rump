@@ -19,15 +19,7 @@ var (
 	db2      radix.Client
 	ch       message.Bus
 	expected map[string]string
-	err      error
 )
-
-func errorReport(err error) {
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
 
 func setup(t *testing.T) {
 	ctx := context.Background()
@@ -47,8 +39,14 @@ func setup(t *testing.T) {
 	for i := 1; i <= 20; i++ {
 		k := fmt.Sprintf("key%v", i)
 		v := fmt.Sprintf("value%v", i)
-		db1.Do(ctx, radix.Cmd(nil, "SET", k, v))
-		db1.Do(ctx, radix.Cmd(nil, "PEXPIRE", k, "30000"))
+		err := db1.Do(ctx, radix.Cmd(nil, "SET", k, v))
+		if err != nil {
+			return
+		}
+		err2 := db1.Do(ctx, radix.Cmd(nil, "PEXPIRE", k, "30000"))
+		if err2 != nil {
+			return
+		}
 		expected[k] = v
 	}
 }
@@ -95,7 +93,10 @@ func TestReadWrite(t *testing.T) {
 	result := map[string]string{}
 	var v string
 	for k := range expected {
-		db2.Do(ctx, radix.Cmd(&v, "GET", k))
+		err := db2.Do(ctx, radix.Cmd(&v, "GET", k))
+		if err != nil {
+			return
+		}
 		result[k] = v
 	}
 

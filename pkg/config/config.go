@@ -65,7 +65,6 @@ func contains(s []string, str string) bool {
 // validate makes sure from and to are Redis URIs or file paths,
 // and generates the final Config.
 func validate(from, to string, silent, ttl bool, maxBuf int) (Config, error) {
-
 	source, err := url.Parse(from)
 	if err != nil {
 		return Config{}, err
@@ -105,7 +104,7 @@ func Parse() Config {
 	example := "example: redis://127.0.0.1:6379/0 or /tmp/dump.rump"
 	from := flag.String("from", "", example)
 	to := flag.String("to", "", example)
-	silent := flag.Bool("silent", false, "optional, no verbose output")
+	silent := flag.Bool("silent", true, "optional, no verbose output")
 	ttl := flag.Bool("ttl", false, "optional, enable ttl sync")
 	maxBuf := flag.Int("buffer", 64*1024, "the size of the buffer used when reading the file, uint:byte")
 

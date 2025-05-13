@@ -38,6 +38,14 @@ $ rump -from redis://127.0.0.1:6379/1 -to redis://127.0.0.1:6379/2 -silent
 
 # Sync with TTLs.
 $ rump -from redis://127.0.0.1:6379/1 -to redis://127.0.0.1:6379/2 -ttl
+
+# Sync with TLS (e.g., AWS/Azure/GCP managed Redis, or any Redis with TLS enabled).
+$ rump -from rediss://my-redis.example.com:6379/0 -to redis://127.0.0.1:6379/0 -tls
+
+# Sync with AUTH password (username optional, for Redis 6+ ACLs).
+$ rump -from redis://:password@127.0.0.1:6379/0 -to redis://127.0.0.1:6379/0
+# or with username (Redis 6+):
+$ rump -from redis://username:password@127.0.0.1:6379/0 -to redis://127.0.0.1:6379/0
 ```
 
 ## Features
